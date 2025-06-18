@@ -19,12 +19,16 @@ class DocumentRead(DocumentBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    document_id: int
-    version: int
-    created_at: datetime
+    # ===== TASK 1: DOCUMENT VERSIONING - Extended Schema for Versioning =====
+    document_id: int      # Logical document ID
+    version: int          # Version number
+    created_at: datetime  # When this version was created
+    # ===== END TASK 1 =====
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - New Schemas for Version Management =====
 class DocumentVersionInfo(BaseModel):
+    """Schema for individual version information"""
     model_config = ConfigDict(from_attributes=True)
     
     version: int
@@ -32,6 +36,8 @@ class DocumentVersionInfo(BaseModel):
 
 
 class DocumentVersionsResponse(BaseModel):
+    """Schema for listing all versions of a document"""
     document_id: int
     versions: List[DocumentVersionInfo]
     latest_version: int
+# ===== END TASK 1 =====

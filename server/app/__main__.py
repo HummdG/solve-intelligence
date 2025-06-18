@@ -18,9 +18,11 @@ import app.schemas as schemas
 async def lifespan(_: FastAPI):
     # Create the database tables
     Base.metadata.create_all(bind=engine)
-    # Insert seed data with versioning
+    
+    # ===== TASK 1: DOCUMENT VERSIONING - Updated Seed Data for Versioning =====
+    # Insert seed data with versioning structure
     with SessionLocal() as db:
-        # Check if documents already exist
+        # Check if documents already exist to prevent duplicates
         existing_doc_1 = db.scalar(select(models.Document).where(models.Document.document_id == 1))
         existing_doc_2 = db.scalar(select(models.Document).where(models.Document.document_id == 2))
         
@@ -29,6 +31,7 @@ async def lifespan(_: FastAPI):
         if not existing_doc_2:
             db.execute(insert(models.Document).values(document_id=2, version=1, content=DOCUMENT_2))
         db.commit()
+    # ===== END TASK 1 =====
     yield
 
 
@@ -42,11 +45,16 @@ app.add_middleware(
 )
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - Enhanced Get Document with Version Support =====
 @app.get("/document/{document_id}")
 def get_document(
     document_id: int, version: int = None, db: Session = Depends(get_db)
 ) -> schemas.DocumentRead:
-    """Get a document from the database. If version is not specified, returns the latest version."""
+    """
+    TASK 1: Get a document from the database. 
+    If version is not specified, returns the latest version.
+    If version is specified, returns that specific version.
+    """
     if version is None:
         # Get the latest version
         document = db.scalar(
@@ -66,13 +74,18 @@ def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
     
     return document
+# ===== END TASK 1 =====
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - New Endpoint to List All Versions =====
 @app.get("/document/{document_id}/versions")
 def get_document_versions(
     document_id: int, db: Session = Depends(get_db)
 ) -> schemas.DocumentVersionsResponse:
-    """Get all versions of a document."""
+    """
+    TASK 1: Get all versions of a document.
+    Returns list of versions with metadata for version switching in UI.
+    """
     versions = db.scalars(
         select(models.Document)
         .where(models.Document.document_id == document_id)
@@ -92,15 +105,20 @@ def get_document_versions(
         versions=version_info,
         latest_version=max(v.version for v in versions)
     )
+# ===== END TASK 1 =====
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - New Endpoint to Create New Versions =====
 @app.post("/document/{document_id}/version")
 def create_new_version(
     document_id: int, 
     document: schemas.DocumentCreate, 
     db: Session = Depends(get_db)
 ) -> schemas.DocumentRead:
-    """Create a new version of a document."""
+    """
+    TASK 1: Create a new version of a document.
+    Automatically increments version number and saves new content.
+    """
     # Get the latest version number
     latest_version = db.scalar(
         select(func.max(models.Document.version))
@@ -124,8 +142,10 @@ def create_new_version(
     db.refresh(new_document)
     
     return new_document
+# ===== END TASK 1 =====
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - New Endpoint to Update Specific Versions =====
 @app.put("/document/{document_id}/version/{version}")
 def update_document_version(
     document_id: int,
@@ -133,7 +153,10 @@ def update_document_version(
     document: schemas.DocumentUpdate,
     db: Session = Depends(get_db)
 ) -> schemas.DocumentRead:
-    """Update a specific version of a document."""
+    """
+    TASK 1: Update a specific version of a document.
+    Allows editing any existing version without creating a new one.
+    """
     existing_document = db.scalar(
         select(models.Document)
         .where(models.Document.document_id == document_id)
@@ -148,8 +171,10 @@ def update_document_version(
     db.refresh(existing_document)
     
     return existing_document
+# ===== END TASK 1 =====
 
 
+# ===== TASK 1: DOCUMENT VERSIONING - Enhanced Save with Version Support =====
 @app.post("/save/{document_id}")
 def save(
     document_id: int, 
@@ -157,7 +182,11 @@ def save(
     version: int = None,
     db: Session = Depends(get_db)
 ):
-    """Save the document to the database. If version is specified, updates that version. Otherwise updates the latest version."""
+    """
+    TASK 1: Save the document to the database. 
+    If version is specified, updates that version. 
+    Otherwise updates the latest version.
+    """
     if version is None:
         # Get the latest version
         existing_document = db.scalar(
@@ -181,9 +210,10 @@ def save(
     
     return {
         "document_id": document_id,
-        "version": existing_document.version,
+        "version": existing_document.version,  # Return version info
         "content": document.content
     }
+# ===== END TASK 1 =====
 
 
 @app.websocket("/ws")

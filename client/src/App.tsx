@@ -2,10 +2,10 @@ import Document from "./Document";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import LoadingOverlay from "./internal/LoadingOverlay";
-import Logo from "./assets/logo.png";
 
 const BACKEND_URL = "http://localhost:8000";
 
+// ===== TASK 1: DOCUMENT VERSIONING - New TypeScript Interfaces for Versioning =====
 interface DocumentVersion {
   version: number;
   created_at: string;
@@ -16,15 +16,20 @@ interface DocumentVersionsResponse {
   versions: DocumentVersion[];
   latest_version: number;
 }
+// ===== END TASK 1 =====
 
 function App() {
   const [currentDocumentContent, setCurrentDocumentContent] =
     useState<string>("");
   const [currentDocumentId, setCurrentDocumentId] = useState<number>(0);
+
+  // ===== TASK 1: DOCUMENT VERSIONING - New State Variables for Version Management =====
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const [availableVersions, setAvailableVersions] = useState<DocumentVersion[]>(
     []
   );
+  // ===== END TASK 1 =====
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Load the first patent on mount
@@ -32,6 +37,7 @@ function App() {
     loadPatent(1);
   }, []);
 
+  // ===== TASK 1: DOCUMENT VERSIONING - Load Available Versions When Document Changes =====
   // Load available versions when document changes
   useEffect(() => {
     if (currentDocumentId > 0) {
@@ -51,7 +57,9 @@ function App() {
       setAvailableVersions([]);
     }
   };
+  // ===== END TASK 1 =====
 
+  // ===== TASK 1: DOCUMENT VERSIONING - Enhanced Load Patent with Version Support =====
   // Callback to load a patent from the backend
   const loadPatent = async (documentNumber: number, version?: number) => {
     setIsLoading(true);
@@ -64,7 +72,7 @@ function App() {
       const response = await axios.get(url);
       setCurrentDocumentContent(response.data.content);
       setCurrentDocumentId(documentNumber);
-      setCurrentVersion(response.data.version);
+      setCurrentVersion(response.data.version); // Track current version
     } catch (error) {
       console.error("Error loading document:", error);
     }
@@ -77,7 +85,9 @@ function App() {
       await loadPatent(currentDocumentId, version);
     }
   };
+  // ===== END TASK 1 =====
 
+  // ===== TASK 1: DOCUMENT VERSIONING - Enhanced Save with Version Support =====
   // Callback to persist a patent in the DB (update existing version)
   const savePatent = async () => {
     if (currentDocumentId === 0) return;
@@ -96,7 +106,9 @@ function App() {
     }
     setIsLoading(false);
   };
+  // ===== END TASK 1 =====
 
+  // ===== TASK 1: DOCUMENT VERSIONING - New Function to Create New Versions =====
   // Callback to create a new version
   const createNewVersion = async () => {
     if (currentDocumentId === 0) return;
@@ -119,12 +131,13 @@ function App() {
     }
     setIsLoading(false);
   };
+  // ===== END TASK 1 =====
 
   return (
     <div className="flex flex-col h-full w-full">
       {isLoading && <LoadingOverlay />}
       <header className="flex items-center justify-center top-0 w-full bg-black text-white text-center z-50 mb-[30px] h-[80px]">
-        <img src={Logo} alt="Logo" style={{ height: "50px" }} />
+        <img src="/si_logo.svg" alt="Logo" style={{ height: "50px" }} />
       </header>
       <div className="flex w-full bg-white h=[calc(100%-100px) gap-4 justify-center box-shadow">
         {/* Left sidebar - Document selection */}
@@ -136,10 +149,12 @@ function App() {
         {/* Main content area */}
         <div className="flex flex-col h-full items-center gap-2 px-4 flex-1">
           <div className="flex items-center justify-between w-full">
+            {/* ===== TASK 1: DOCUMENT VERSIONING - Enhanced Header with Version Display ===== */}
             <h2 className="text-[#213547] opacity-60 text-2xl font-semibold">
               {`Patent ${currentDocumentId} - Version ${currentVersion}`}
             </h2>
 
+            {/* ===== TASK 1: DOCUMENT VERSIONING - Version Selector Dropdown ===== */}
             {/* Version selector */}
             {availableVersions.length > 0 && (
               <div className="flex items-center gap-2">
@@ -164,6 +179,7 @@ function App() {
                 </select>
               </div>
             )}
+            {/* ===== END TASK 1 ===== */}
           </div>
 
           <Document
@@ -174,18 +190,21 @@ function App() {
 
         {/* Right sidebar - Actions */}
         <div className="flex flex-col h-full items-center gap-2 px-4">
+          {/* ===== TASK 1: DOCUMENT VERSIONING - Enhanced Save Button ===== */}
           <button
             onClick={savePatent}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
             Save
           </button>
+          {/* ===== TASK 1: DOCUMENT VERSIONING - New Version Creation Button ===== */}
           <button
             onClick={createNewVersion}
             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
           >
             New Version
           </button>
+          {/* ===== END TASK 1 ===== */}
         </div>
       </div>
     </div>
