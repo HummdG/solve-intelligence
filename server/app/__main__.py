@@ -13,6 +13,10 @@ from app.internal.db import Base, SessionLocal, engine, get_db
 import app.models as models
 import app.schemas as schemas
 
+import re
+import json
+from typing import Dict, Any
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -216,20 +220,154 @@ def save(
 # ===== END TASK 1 =====
 
 
+# ===== TASK 2: REAL-TIME AI SUGGESTIONS - Enhanced WebSocket Implementation =====
 @app.websocket("/ws")
 async def websocket(websocket: WebSocket, ai: AI = Depends(get_ai)):
     await websocket.accept()
+    print("WebSocket connection established")
+    
     while True:
         try:
-            """
-            The AI doesn't expect to receive any HTML.
-            You can call ai.review_document to receive suggestions from the LLM.
-            Remember, the output from the LLM will not be deterministic, so you may want to validate the output before sending it to the client.
-            """
-            document = await websocket.receive_text()
-            print("Received data via websocket")
+            # Receive HTML content from the client
+            raw_document = await websocket.receive_text()
+            print("Received document content via WebSocket")
+            
+            # Convert HTML to plain text for AI processing
+            plain_text_document = strip_html_tags(raw_document)
+            
+            if not plain_text_document.strip():
+                # Send empty suggestions if no content
+                await websocket.send_text(json.dumps({
+                    "type": "suggestions",
+                    "data": {"issues": []},
+                    "status": "success"
+                }))
+                continue
+            
+            # Send status update to client
+            await websocket.send_text(json.dumps({
+                "type": "status",
+                "data": {"message": "Analyzing document..."},
+                "status": "processing"
+            }))
+            
+            # Stream AI suggestions
+            accumulated_response = ""
+            async for chunk in ai.review_document(plain_text_document):
+                if chunk:
+                    accumulated_response += chunk
+                    
+                    # Try to parse JSON incrementally
+                    try:
+                        # Attempt to parse the accumulated response
+                        parsed_suggestions = json.loads(accumulated_response)
+                        
+                        # Validate the structure
+                        if validate_ai_response(parsed_suggestions):
+                            # Send successful suggestions to client
+                            await websocket.send_text(json.dumps({
+                                "type": "suggestions",
+                                "data": parsed_suggestions,
+                                "status": "success"
+                            }))
+                            break  # Successfully processed
+                        
+                    except json.JSONDecodeError:
+                        # Continue accumulating if JSON is incomplete
+                        continue
+            
+            # If we couldn't parse valid JSON, send error
+            if not accumulated_response or not validate_ai_response_structure(accumulated_response):
+                await websocket.send_text(json.dumps({
+                    "type": "error", 
+                    "data": {"message": "Failed to generate valid suggestions"},
+                    "status": "error"
+                }))
+                        
         except WebSocketDisconnect:
+            print("WebSocket client disconnected")
             break
         except Exception as e:
-            print(f"Error occurred: {e}")
-            continue
+            print(f"WebSocket error occurred: {e}")
+            # Send error message to client
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "data": {"message": f"Processing error: {str(e)}"},
+                    "status": "error"
+                }))
+            except:
+                # If we can't send error message, connection is likely broken
+                break
+
+
+def strip_html_tags(html_content: str) -> str:
+    """
+    TASK 2: Convert HTML content to plain text for AI processing.
+    The AI library expects plain text without HTML markup.
+    """
+    if not html_content:
+        return ""
+    
+    # Remove HTML tags using regex
+    clean_text = re.sub(r'<[^>]+>', '', html_content)
+    
+    # Replace HTML entities
+    clean_text = clean_text.replace('&nbsp;', ' ')
+    clean_text = clean_text.replace('&amp;', '&')
+    clean_text = clean_text.replace('&lt;', '<')
+    clean_text = clean_text.replace('&gt;', '>')
+    clean_text = clean_text.replace('&quot;', '"')
+    
+    # Clean up whitespace
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    clean_text = clean_text.strip()
+    
+    return clean_text
+
+
+def validate_ai_response(response: Dict[Any, Any]) -> bool:
+    """
+    TASK 2: Validate AI response structure to handle intermittent JSON formatting errors.
+    """
+    try:
+        # Check if response has required structure
+        if not isinstance(response, dict):
+            return False
+            
+        if "issues" not in response:
+            return False
+            
+        issues = response["issues"]
+        if not isinstance(issues, list):
+            return False
+            
+        # Validate each issue structure
+        for issue in issues:
+            if not isinstance(issue, dict):
+                return False
+                
+            required_fields = ["type", "severity", "paragraph", "description", "suggestion"]
+            if not all(field in issue for field in required_fields):
+                return False
+                
+            # Validate severity values
+            if issue["severity"] not in ["high", "medium", "low"]:
+                return False
+                
+        return True
+        
+    except Exception:
+        return False
+
+
+def validate_ai_response_structure(response_text: str) -> bool:
+    """
+    TASK 2: Additional validation helper for response text.
+    """
+    try:
+        parsed = json.loads(response_text)
+        return validate_ai_response(parsed)
+    except json.JSONDecodeError:
+        return False
+# ===== END TASK 2 =====
